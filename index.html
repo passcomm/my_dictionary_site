@@ -3,37 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Professional Voca Player</title>
+    <title>Perfect Voice Voca Player</title>
     <style>
         body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        
-        /* 탭 디자인 복구 */
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
-
-        /* 설정 및 상태 표시 */
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .status-box { text-align: center; background: #eef6ff; padding: 15px; border-radius: 10px; margin: 15px 0; border: 1px solid #d0e3ff; }
         #statusLabel { font-size: 20px; font-weight: bold; color: #0056b3; }
         #progressDetail { font-size: 14px; color: #666; margin-top: 5px; }
-
-        /* 제어 버튼 */
         .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         button { padding: 15px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
         .primary { background: #28a745; color: white; }
         .warning { background: #ffc107; color: black; }
         .danger { background: #dc3545; color: white; }
         .secondary { background: #6c757d; color: white; }
-
-        /* 입력창 및 관리 */
         textarea { width: 100%; height: 100px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 12px; font-size: 14px; resize: none; }
         .admin-controls { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 20px; }
-
-        /* 단어 리스트 */
-        .word-list { margin-top: 20px; border-top: 2px solid #eee; }
         .word-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: #fff; }
         .word-text { flex: 1; margin-left: 10px; font-size: 16px; }
         .star { font-size: 28px; color: #ccc; cursor: pointer; }
@@ -52,7 +41,7 @@
     <div class="settings">
         <div class="setting-item">
             <span>반복 횟수</span>
-            <select id="repeatCount" style="padding:5px; border-radius:5px;">
+            <select id="repeatCount">
                 <option value="1">1회씩 읽기</option>
                 <option value="2">2회 반복</option>
                 <option value="3">3회 반복</option>
@@ -75,14 +64,14 @@
         <button class="danger" onclick="stopReading()">종료</button>
     </div>
 
-    <textarea id="bulkInput" placeholder="단어 뜻 (한 줄에 하나씩 붙여넣기)"></textarea>
+    <textarea id="bulkInput" placeholder="영어단어 뜻 (공백으로 구분, 한 줄에 하나씩)"></textarea>
     
     <div class="admin-controls">
         <button class="secondary" onclick="addBulkWords()">단어 대량 등록</button>
         <button class="danger" style="background:#ba2121" onclick="clearAllWords()">전체 삭제</button>
     </div>
 
-    <div id="wordListDisplay" class="word-list"></div>
+    <div id="wordListDisplay"></div>
 </div>
 
 <script>
@@ -116,41 +105,25 @@
     function addBulkWords() {
         const input = document.getElementById('bulkInput').value;
         if(!input.trim()) return;
-        
-        // 속도 개선: 대량 데이터를 한 번에 처리
         const newLines = input.split('\n').filter(line => line.trim() !== "");
         const newWords = newLines.map(line => ({ text: line.trim(), selected: false }));
         words = [...words, ...newWords];
-        
         document.getElementById('bulkInput').value = '';
         save();
-        alert(`${newLines.length}개의 단어가 순식간에 등록되었습니다!`);
     }
 
-    function clearAllWords() {
-        if(confirm("모든 단어를 삭제하시겠습니까?")) {
-            stopReading();
-            words = [];
-            save();
-        }
-    }
-
+    function clearAllWords() { if(confirm("전체 삭제하시겠습니까?")) { stopReading(); words = []; save(); } }
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
         listDiv.innerHTML = '';
-        const target = (currentTab === 'all' ? words : words.filter(w=>w.selected));
-        
-        // 성능 최적화: 문서 조각(Fragment) 사용
         const fragment = document.createDocumentFragment();
         words.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
             const item = document.createElement('div');
             item.className = 'word-item';
-            item.innerHTML = `
-                <span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
+            item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
                 <span class="word-text">${word.text}</span>
-                <button class="del-btn" onclick="deleteWord(${index})">삭제</button>
-            `;
+                <button class="del-btn" onclick="deleteWord(${index})">삭제</button>`;
             fragment.appendChild(item);
         });
         listDiv.appendChild(fragment);
@@ -162,62 +135,60 @@
     function startReading() {
         if (isReading) return;
         synth.cancel();
-        
         const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
-        if (list.length === 0) return alert('읽을 단어가 없습니다.');
-
+        if (list.length === 0) return alert('단어가 없습니다.');
         isReading = true;
         if (currentIdx >= list.length) currentIdx = 0;
-        readLoop(list);
+        readNextItem(list);
     }
 
-    function readLoop(list) {
+    // [핵심 변경] 단어와 뜻을 분리하여 읽는 로직
+    function readNextItem(list) {
         if (!isReading || currentIdx >= list.length) {
             if (currentIdx >= list.length) stopReading();
             return;
         }
 
-        const rptMax = parseInt(document.getElementById('repeatCount').value);
-        const spd = parseFloat(document.getElementById('readSpeed').value);
-        const word = list[currentIdx];
+        const fullText = list[currentIdx].text;
+        // 첫 번째 공백이나 탭을 기준으로 단어(영어)와 뜻(한국어) 분리
+        let english = fullText.split(/[ \t]/)[0]; 
+        let korean = fullText.replace(english, "").trim();
 
-        // [복구 완료] 요청하신 1/962 형식의 진행 상태 표시
         document.getElementById('statusLabel').innerText = `읽는 중: ${currentIdx + 1} / ${list.length}`;
-        document.getElementById('progressDetail').innerText = `현재 단어: ${word.text} (${currentRepeat + 1}회 반복)`;
+        document.getElementById('progressDetail').innerText = `${english} : ${korean} (${currentRepeat + 1}회)`;
 
-        const utter = new SpeechSynthesisUtterance(word.text);
-        utter.rate = spd;
-        utter.lang = /[a-zA-Z]/.test(word.text) ? 'en-US' : 'ko-KR';
+        const spd = parseFloat(document.getElementById('readSpeed').value);
 
-        utter.onend = () => {
-            currentRepeat++;
-            if (currentRepeat < rptMax) {
-                setTimeout(() => readLoop(list), 300);
-            } else {
-                currentRepeat = 0;
-                currentIdx++;
-                setTimeout(() => readLoop(list), 700);
-            }
+        // 1단계: 영어 단어 읽기
+        const utterEng = new SpeechSynthesisUtterance(english);
+        utterEng.lang = 'en-US';
+        utterEng.rate = spd;
+
+        utterEng.onend = () => {
+            if (!isReading) return;
+            // 2단계: 한국어 뜻 읽기
+            const utterKor = new SpeechSynthesisUtterance(korean);
+            utterKor.lang = 'ko-KR';
+            utterKor.rate = spd;
+
+            utterKor.onend = () => {
+                if (!isReading) return;
+                currentRepeat++;
+                if (currentRepeat < parseInt(document.getElementById('repeatCount').value)) {
+                    setTimeout(() => readNextItem(list), 400);
+                } else {
+                    currentRepeat = 0;
+                    currentIdx++;
+                    setTimeout(() => readNextItem(list), 800);
+                }
+            };
+            synth.speak(utterKor);
         };
-
-        synth.speak(utter);
+        synth.speak(utterEng);
     }
 
-    function pauseReading() {
-        isReading = false;
-        synth.cancel();
-        document.getElementById('statusLabel').innerText = "일시 정지됨";
-    }
-
-    function stopReading() {
-        isReading = false;
-        currentIdx = 0;
-        currentRepeat = 0;
-        synth.cancel();
-        document.getElementById('statusLabel').innerText = "준비되었습니다";
-        updateStatus();
-    }
-
+    function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = "일시 정지됨"; }
+    function stopReading() { isReading = false; currentIdx = 0; currentRepeat = 0; synth.cancel(); document.getElementById('statusLabel').innerText = "준비되었습니다"; updateStatus(); }
     window.onload = () => { render(); updateStatus(); };
 </script>
 </body>
