@@ -2,37 +2,46 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Smart Voca Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voca Player PRO</title>
     <style>
-        body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 0 auto; background: #f0f2f5; padding: 15px; }
+        /* 네이버 앱 등 웹뷰에서 터치 반응 속도를 높이기 위한 설정 */
+        * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 0 auto; background: #f0f2f5; padding: 15px; line-height: 1.5; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* 탭 디자인 */
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; }
         .tab-btn.active { background: #007bff; color: white; }
-        .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .setting-item { display: flex; justify-content: space-between; align-items: center; }
-        
-        /* 메인 제어 버튼 */
-        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-        button { padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; }
-        .primary { background: #28a745; color: white; }
-        .danger { background: #dc3545; color: white; }
-        .warning { background: #ffc107; color: black; }
-        .secondary { background: #6c757d; color: white; }
-        .clear-btn { background: #ff4d4d; color: white; } /* 전체 삭제 전용 색상 */
 
-        /* [수정] 관리 버튼 영역을 더 명확하게 */
-        .admin-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        /* 설정창 */
+        .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
         
-        textarea { width: 100%; height: 80px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 10px; box-sizing: border-box; font-size: 14px; }
-        .status { text-align: center; font-weight: bold; color: #007bff; margin: 10px 0; min-height: 1.2em; font-size: 1.1em; }
+        /* 제어 버튼군 */
+        .status { text-align: center; font-weight: bold; color: #007bff; margin: 15px 0; min-height: 1.5em; font-size: 1.1em; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         
-        /* 리스트 스타일 */
-        .word-item { display: flex; align-items: center; background: #fff; padding: 12px; border-bottom: 1px solid #eee; }
-        .word-text { flex: 1; margin: 0 10px; font-size: 15px; }
-        .star { font-size: 22px; color: #ccc; cursor: pointer; }
+        /* 버튼 공통 스타일 */
+        button { padding: 14px 5px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 15px; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; } /* 터치 시 피드백 */
+        
+        .primary { background: #28a745; color: white; }
+        .warning { background: #ffc107; color: black; }
+        .danger { background: #dc3545; color: white; }
+        .secondary { background: #6c757d; color: white; }
+        
+        /* 입력창 및 하단 버튼 */
+        textarea { width: 100%; height: 90px; margin-top: 10px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 12px; font-size: 14px; }
+        .admin-controls { display: grid; grid-template-columns: 1.5fr 1fr; gap: 8px; margin-bottom: 20px; }
+
+        /* 리스트 항목 */
+        .word-item { display: flex; align-items: center; background: #fff; padding: 15px; border-bottom: 1px solid #eee; }
+        .word-text { flex: 1; margin: 0 10px; font-size: 16px; word-break: break-all; }
+        .star { font-size: 28px; color: #ccc; cursor: pointer; padding-right: 10px; }
         .star.selected { color: #ffc107; }
+        .del-mini { padding: 6px 12px; font-size: 12px; font-weight: normal; }
     </style>
 </head>
 <body>
@@ -46,10 +55,10 @@
     <div class="settings">
         <div class="setting-item">
             <span>반복 횟수</span>
-            <select id="repeatCount">
-                <option value="1">1회씩 읽기</option>
-                <option value="2">2회씩 반복</option>
-                <option value="3">3회씩 반복</option>
+            <select id="repeatCount" style="padding:5px;">
+                <option value="1">1회씩</option>
+                <option value="2">2회 반복</option>
+                <option value="3">3회 반복</option>
             </select>
         </div>
         <div class="setting-item">
@@ -58,26 +67,26 @@
         </div>
     </div>
 
-    <div id="statusLabel" class="status"></div>
+    <div id="statusLabel" class="status">준비 완료</div>
 
     <div class="controls">
         <button class="primary" onclick="startReading()">시작</button>
-        <button class="warning" onclick="pauseReading()">일시정지</button>
+        <button class="warning" onclick="pauseReading()">정지</button>
         <button class="danger" onclick="stopReading()">종료</button>
     </div>
 
-    <textarea id="bulkInput" placeholder="단어 뜻 (한 줄에 하나씩 붙여넣기)"></textarea>
+    <textarea id="bulkInput" placeholder="단어 뜻 (한 줄에 하나씩)"></textarea>
     
     <div class="admin-controls">
         <button class="secondary" onclick="addBulkWords()">단어 등록</button>
-        <button class="clear-btn" onclick="clearAllWords()">전체 삭제</button>
+        <button class="danger" onclick="clearAllWords()">전체 삭제</button>
     </div>
 
     <div id="wordListDisplay"></div>
 </div>
 
 <script>
-    // 스크립트 부분은 동일하나, 전체 삭제 함수가 누락되지 않도록 다시 포함합니다.
+    // 전역 변수 초기화
     let words = JSON.parse(localStorage.getItem('myWords')) || [];
     let currentTab = 'all';
     let isReading = false;
@@ -85,66 +94,93 @@
     let currentWordIndex = 0;
     let currentRepeat = 0;
 
+    // 데이터 저장
     function save() {
-        localStorage.setItem('myWords', JSON.stringify(words));
-        render();
+        try {
+            localStorage.setItem('myWords', JSON.stringify(words));
+            render();
+        } catch (e) {
+            alert("저장 용량 초과 또는 브라우저 제한으로 저장에 실패했습니다.");
+        }
     }
 
+    // 탭 전환
     function switchTab(tab) {
         currentTab = tab;
         document.getElementById('btnAll').classList.toggle('active', tab === 'all');
         document.getElementById('btnSelected').classList.toggle('active', tab === 'selected');
-        stopReading(); 
+        stopReading();
         render();
     }
 
+    // 대량 등록
     function addBulkWords() {
         const input = document.getElementById('bulkInput').value;
         if(!input.trim()) return;
-        const newWords = input.split('\n').filter(line => line.trim() !== "");
-        newWords.forEach(line => {
+        const newLines = input.split('\n').filter(l => l.trim() !== "");
+        newLines.forEach(line => {
             words.push({ text: line.trim(), selected: false });
         });
         document.getElementById('bulkInput').value = '';
         save();
-        alert(newWords.length + "개의 단어가 추가되었습니다.");
+        alert(newLines.length + "개 단어 등록 완료!");
     }
 
-    // 전체 삭제 함수
+    // 전체 삭제
     function clearAllWords() {
         if(confirm("정말로 모든 단어를 삭제하시겠습니까?")) {
             stopReading();
             words = [];
             save();
-            alert("모든 단어가 삭제되었습니다.");
+            alert("삭제되었습니다.");
         }
     }
 
+    // 목록 렌더링 (네이버 앱 호환성을 위해 innerHTML 방식 최적화)
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
-        listDiv.innerHTML = '';
+        let html = '';
         words.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
-            const item = document.createElement('div');
-            item.className = 'word-item';
-            item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
-                <span class="word-text">${word.text}</span>
-                <button class="danger" style="padding:5px 10px; font-size:12px; font-weight:normal;" onclick="deleteWord(${index})">삭제</button>`;
-            listDiv.appendChild(item);
+            html += `
+                <div class="word-item">
+                    <span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
+                    <span class="word-text">${word.text}</span>
+                    <button class="danger del-mini" onclick="deleteWord(${index})">삭제</button>
+                </div>`;
         });
+        listDiv.innerHTML = html;
     }
 
-    function toggleSelect(index) { words[index].selected = !words[index].selected; save(); }
-    function deleteWord(index) { if(confirm('이 단어를 삭제할까요?')) { words.splice(index, 1); save(); } }
+    function toggleSelect(index) {
+        words[index].selected = !words[index].selected;
+        save();
+    }
 
+    function deleteWord(index) {
+        if(confirm('삭제할까요?')) {
+            words.splice(index, 1);
+            save();
+        }
+    }
+
+    // 음성 읽기 로직 (웹뷰 강제 깨우기 포함)
     function startReading() {
         if (isReading) return;
+        
+        // 네이버 앱 보안 해제용 빈 소리 재생
         synth.cancel();
+        const wakeUp = new SpeechSynthesisUtterance(" ");
+        synth.speak(wakeUp);
+
         const targetList = currentTab === 'all' ? words : words.filter(w => w.selected);
-        if (targetList.length === 0) return alert('읽을 단어가 없습니다.');
+        if (targetList.length === 0) return alert('목록이 비어 있습니다.');
+
         isReading = true;
         if (currentWordIndex >= targetList.length) currentWordIndex = 0;
-        readLoop(targetList);
+        
+        document.getElementById('statusLabel').innerText = "엔진 준비 중...";
+        setTimeout(() => readLoop(targetList), 400);
     }
 
     function readLoop(list) {
@@ -152,25 +188,58 @@
             if (currentWordIndex >= list.length) stopReading();
             return;
         }
+
         const maxRepeat = parseInt(document.getElementById('repeatCount').value);
         const speed = parseFloat(document.getElementById('readSpeed').value);
         const fullText = list[currentWordIndex].text;
-        document.getElementById('statusLabel').innerText = `[${currentWordIndex + 1}/${list.length}] ${currentRepeat + 1}회 읽는 중`;
+
+        document.getElementById('statusLabel').innerText = `[${currentWordIndex + 1}/${list.length}] ${currentRepeat + 1}회 재생`;
+
         const utterance = new SpeechSynthesisUtterance(fullText);
         utterance.rate = speed;
-        if (/[a-zA-Z]/.test(fullText)) { utterance.lang = 'en-US'; } else { utterance.lang = 'ko-KR'; }
+        
+        // 언어 감지
+        if (/[a-zA-Z]/.test(fullText)) {
+            utterance.lang = 'en-US';
+        } else {
+            utterance.lang = 'ko-KR';
+        }
+
         utterance.onend = () => {
             currentRepeat++;
-            if (currentRepeat < maxRepeat) { setTimeout(() => readLoop(list), 400); } 
-            else { currentRepeat = 0; currentWordIndex++; setTimeout(() => readLoop(list), 800); }
+            if (currentRepeat < maxRepeat) {
+                setTimeout(() => readLoop(list), 400);
+            } else {
+                currentRepeat = 0;
+                currentWordIndex++;
+                setTimeout(() => readLoop(list), 800);
+            }
         };
+
+        utterance.onerror = () => {
+            isReading = false;
+            document.getElementById('statusLabel').innerText = "오류 발생 (다시 시작하세요)";
+        };
+
         synth.speak(utterance);
     }
 
-    function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = '일시 정지됨'; }
-    function stopReading() { isReading = false; currentWordIndex = 0; currentRepeat = 0; synth.cancel(); document.getElementById('statusLabel').innerText = ''; }
+    function pauseReading() {
+        isReading = false;
+        synth.cancel();
+        document.getElementById('statusLabel').innerText = "일시 정지됨";
+    }
 
-    render();
+    function stopReading() {
+        isReading = false;
+        currentWordIndex = 0;
+        currentRepeat = 0;
+        synth.cancel();
+        document.getElementById('statusLabel').innerText = "준비 완료";
+    }
+
+    // 페이지 로드 시 즉시 렌더링
+    window.onload = render;
 </script>
 </body>
 </html>
