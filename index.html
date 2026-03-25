@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Mobile Voca Player</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 0 auto; background: #f0f2f5; padding: 15px; }
+        .container { background: white; padding: 20px; border-radius: 15px; shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; }
+        .tab-btn.active { background: #007bff; color: white; }
+        
+        /* 설정 영역 스타일 */
+        .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; }
+        select, input[type="range"] { padding: 5px; border-radius: 5px; }
+
+        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        button { padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; }
+        .primary { background: #28a745; color: white; }
+        .danger { background: #dc3545; color: white; }
+        .warning { background: #ffc107; color: black; }
+        
+        textarea { width: 100%; height: 80px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 10px; box-sizing: border-box; }
+        .word-item { display: flex; align-items: center; background: #fff; padding: 12px; border-bottom: 1px solid #eee; }
+        .word-text { flex: 1; margin: 0 10px; font-size: 15px; }
+        .star { font-size: 22px; color: #ccc; cursor: pointer; }
+        .star.selected { color: #ffc107; }
+        .status { text-align: center; font-weight: bold; color: #007bff; margin: 10px 0; min-height: 1.2em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('all')">전체</button>
+        <button class="tab-btn" onclick="switchTab('selected')">선별(★)</button>
+    </div>
+
+    <div class="settings">
+        <div class="setting-item">
+            <span>반복 횟수</span>
+            <select id="repeatCount">
+                <option value="1">1회씩 읽기</option>
+                <option value="2">2회씩 반복</option>
+                <option value="3">3회씩 반복</option>
+            </select>
+        </div>
+        <div class="setting-item">
+            <span>읽기 속도 (<span id="speedVal">1.0</span>x)</span>
+            <input type="range" id="readSpeed" min="0.5" max="2.0" step="0.1" value="1.0" oninput="document.getElementById('speedVal').innerText=this.value">
+        </div>
+    </div>
+
+    <div id="statusLabel" class="status">대기 중...</div>
+
+    <div class="controls">
+        <button class="primary" onclick="startReading()">시작</button>
+        <button class="warning" onclick="pauseReading()">정지</button>
+        <button class="danger" onclick="stopReading()">종료</button>
+    </div>
+
+    <textarea id="bulkInput" placeholder="단어 뜻 (한 줄에 하나씩 붙여넣기)"></textarea>
+    <button class="primary" style="width:100%; margin-bottom:20px;" onclick="addBulkWords()">단어 대량 등록</button>
+
+    <div id="wordListDisplay"></div>
+</div>
+
+<script>
+    let words = JSON.parse(localStorage.getItem('myWords')) || [];
+    let currentTab = 'all';
+    let isReading = false;
+    let synth = window.speechSynthesis;
+    let currentWordIndex = 0;
+    let currentRepeat = 0;
+
+    function save() {
+        localStorage.setItem('myWords', JSON.stringify(words));
+        render();
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        render();
+    }
+
+    function addBulkWords() {
+        const input = document.getElementById('bulkInput').value;
+        input.split('\n').forEach(line => {
+            if(line.trim()) words.push({ text: line.trim(), selected: false });
+        });
+        document.getElementById('bulkInput').value = '';
+        save();
+    }
+
+    function render() {
+        const listDiv = document.getElementById('wordListDisplay');
+        listDiv.innerHTML = '';
+        words.forEach((word, index) => {
+            if (currentTab === 'selected' && !word.selected) return;
+            const item = document.createElement('div');
+            item.className = 'word-item';
+            item.innerHTML = `
+                <span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
+                <span class="word-text">${word.text}</span>
+                <button class="danger" style="padding:5px 10px;" onclick="deleteWord(${index})">삭제</button>
+            `;
+            listDiv.appendChild(item);
+        });
+    }
+
+    function toggleSelect(index) { words[index].selected = !words[index].selected; save(); }
+    function deleteWord(index) { if(confirm('삭제할까요?')) { words.splice(index, 1); save(); } }
+
+    function startReading() {
+        if (synth.speaking) synth.cancel();
+        const targetList = currentTab === 'all' ? words : words.filter(w => w.selected);
+        if (targetList.length === 0) return alert('단어가 없습니다.');
+        
+        isReading = true;
+        currentWordIndex = 0;
+        currentRepeat = 0;
+        readLoop(targetList);
+    }
+
+    function readLoop(list) {
+        if (!isReading || currentWordIndex >= list.length) {
+            stopReading();
+            return;
+        }
+
+        const maxRepeat = parseInt(document.getElementById('repeatCount').value);
+        const speed = parseFloat(document.getElementById('readSpeed').value);
+        const currentWord = list[currentWordIndex].text;
+
+        document.getElementById('statusLabel').innerText = `[${currentWordIndex + 1}/${list.length}] ${currentRepeat + 1}회차 읽는 중`;
+
+        const utterance = new SpeechSynthesisUtterance(currentWord);
+        utterance.rate = speed;
+        
+        utterance.onend = () => {
+            currentRepeat++;
+            if (currentRepeat < maxRepeat) {
+                setTimeout(() => readLoop(list), 300);
+            } else {
+                currentRepeat = 0;
+                currentWordIndex++;
+                setTimeout(() => readLoop(list), 700);
+            }
+        };
+
+        synth.speak(utterance);
+    }
+
+    function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = '정지됨'; }
+    function stopReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = '대기 중...'; }
+
+    render();
+</script>
+</body>
+</html>
