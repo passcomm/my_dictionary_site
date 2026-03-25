@@ -9,14 +9,14 @@
         body { font-family: -apple-system, sans-serif; max-width: 500px; margin: 0 auto; background: #f0f2f5; padding: 15px; }
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
         .status { text-align: center; font-weight: bold; color: #007bff; margin: 15px 0; min-height: 1.5em; font-size: 1.1em; }
         .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         button { padding: 15px 5px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 15px; width: 100%; -webkit-appearance: none; }
-        button:active { background: #ccc !important; color: #000 !important; }
+        button:active { opacity: 0.7; }
         .primary { background: #28a745; color: white; }
         .warning { background: #ffc107; color: black; }
         .danger { background: #dc3545; color: white; }
@@ -25,9 +25,9 @@
         .admin-controls { display: grid; grid-template-columns: 1.5fr 1fr; gap: 8px; margin-bottom: 20px; }
         .word-item { display: flex; align-items: center; background: #fff; padding: 15px; border-bottom: 1px solid #eee; }
         .word-text { flex: 1; margin: 0 10px; font-size: 16px; word-break: break-all; }
-        .star { font-size: 30px; color: #ccc; cursor: pointer; padding: 5px 15px; display: inline-block; }
+        .star { font-size: 30px; color: #ccc; cursor: pointer; padding: 5px 15px; }
         .star.selected { color: #ffc107; }
-        .del-mini { padding: 8px 12px; font-size: 12px; width: auto; }
+        .del-mini { padding: 8px 12px; font-size: 12px; width: auto; font-weight: normal; }
     </style>
 </head>
 <body>
@@ -60,12 +60,12 @@
 
 <script>
     let words = [];
-    try { words = JSON.parse(localStorage.getItem('myWords')) || []; } catch(e) { console.error(e); }
+    try { words = JSON.parse(localStorage.getItem('myWords')) || []; } catch(e) {}
     let currentTab = 'all', isReading = false, synth = window.speechSynthesis, currentWordIndex = 0, currentRepeat = 0;
 
     function save() {
         try { localStorage.setItem('myWords', JSON.stringify(words)); render(); } 
-        catch(e) { alert("저장 권한이 차단되어 있습니다. 크롬 브라우저 사용을 권장합니다."); }
+        catch(e) { alert("저장 실패. 브라우저 설정을 확인하세요."); }
     }
 
     function render() {
@@ -104,15 +104,25 @@
         const spd = parseFloat(document.getElementById('readSpeed').value);
         const txt = list[currentWordIndex].text;
         document.getElementById('statusLabel').innerText = `[${currentWordIndex+1}/${list.length}] ${currentRepeat+1}회 재생`;
+        
         const utter = new SpeechSynthesisUtterance(txt);
         utter.rate = spd;
         utter.lang = /[a-zA-Z]/.test(txt) ? 'en-US' : 'ko-KR';
+        
         utter.onend = () => { 
+            if(!isReading) return;
             currentRepeat++; 
             if(currentRepeat < rpt) setTimeout(()=>readLoop(list), 400);
             else { currentRepeat = 0; currentWordIndex++; setTimeout(()=>readLoop(list), 800); }
         };
-        utter.onerror = () => { stopReading(); alert("음성 엔진 오류. 브라우저를 새로고침하세요."); };
+
+        // [핵심 수정] 정지 시 발생하는 'interrupted' 오류 등은 무시하도록 설정
+        utter.onerror = (e) => { 
+            if (e.error !== 'interrupted') {
+                console.error("Speech Error:", e);
+            }
+        };
+
         synth.speak(utter);
     }
 
