@@ -5,29 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Perfect Voice Voca Player</title>
     <style>
-        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px; }
+        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 100px 15px; } /* 하단 여백 추가 */
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        
+        /* 상단 고정 상태 박스 */
         .status-box { text-align: center; background: #eef6ff; padding: 15px; border-radius: 10px; margin: 15px 0; border: 1px solid #d0e3ff; }
         #statusLabel { font-size: 20px; font-weight: bold; color: #0056b3; }
         #progressDetail { font-size: 14px; color: #666; margin-top: 5px; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+
+        /* [수정 1] 플로팅 컨트롤바 스타일 */
+        .controls-wrapper {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            width: 100%;
+            max-width: 570px;
+        }
+
         button { padding: 15px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
         .primary { background: #28a745; color: white; }
         .warning { background: #ffc107; color: black; }
         .danger { background: #dc3545; color: white; }
         .secondary { background: #6c757d; color: white; }
+        
         textarea { width: 100%; height: 100px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 12px; font-size: 14px; resize: none; }
         .admin-controls { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 20px; }
         .word-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: #fff; }
         .word-text { flex: 1; margin-left: 10px; font-size: 16px; }
         .star { font-size: 28px; color: #ccc; cursor: pointer; }
         .star.selected { color: #ffc107; }
+        
+        /* 버튼 스타일 분리 */
         .del-btn { padding: 5px 10px; font-size: 12px; background: #ffeded; color: #d9534f; border: 1px solid #d9534f; border-radius: 5px; }
+        .unselect-btn { padding: 5px 10px; font-size: 12px; background: #f0f0f0; color: #555; border: 1px solid #ccc; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -58,12 +85,6 @@
         <div id="progressDetail">등록된 단어: 0개</div>
     </div>
 
-    <div class="controls">
-        <button class="primary" onclick="startReading()">시작</button>
-        <button class="warning" onclick="pauseReading()">일시정지</button>
-        <button class="danger" onclick="stopReading()">종료</button>
-    </div>
-
     <textarea id="bulkInput" placeholder="영어단어 뜻 (공백으로 구분, 한 줄에 하나씩)"></textarea>
     
     <div class="admin-controls">
@@ -72,6 +93,14 @@
     </div>
 
     <div id="wordListDisplay"></div>
+</div>
+
+<div class="controls-wrapper">
+    <div class="controls">
+        <button class="primary" onclick="startReading()">시작</button>
+        <button class="warning" onclick="pauseReading()">일시정지</button>
+        <button class="danger" onclick="stopReading()">종료</button>
+    </div>
 </div>
 
 <script>
@@ -113,24 +142,34 @@
     }
 
     function clearAllWords() { if(confirm("전체 삭제하시겠습니까?")) { stopReading(); words = []; save(); } }
+    
+    // [수정 2] 렌더링 시 탭에 따라 버튼 분기 처리
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
         listDiv.innerHTML = '';
         const fragment = document.createDocumentFragment();
+        
         words.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
+            
             const item = document.createElement('div');
             item.className = 'word-item';
+            
+            // 전체 탭에서는 '삭제', 선별 탭에서는 '해제' 버튼 표시
+            const actionBtn = currentTab === 'all' 
+                ? `<button class="del-btn" onclick="deleteWord(${index})">삭제</button>`
+                : `<button class="unselect-btn" onclick="toggleSelect(${index})">해제</button>`;
+
             item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
                 <span class="word-text">${word.text}</span>
-                <button class="del-btn" onclick="deleteWord(${index})">삭제</button>`;
+                ${actionBtn}`;
             fragment.appendChild(item);
         });
         listDiv.appendChild(fragment);
     }
 
     function toggleSelect(i) { words[i].selected = !words[i].selected; save(); }
-    function deleteWord(i) { if(confirm('삭제할까요?')) { words.splice(i, 1); save(); } }
+    function deleteWord(i) { if(confirm('단어장에서 완전히 삭제할까요?')) { words.splice(i, 1); save(); } }
 
     function startReading() {
         if (isReading) return;
@@ -142,7 +181,6 @@
         readNextItem(list);
     }
 
-    // [핵심 변경] 단어와 뜻을 분리하여 읽는 로직
     function readNextItem(list) {
         if (!isReading || currentIdx >= list.length) {
             if (currentIdx >= list.length) stopReading();
@@ -150,7 +188,6 @@
         }
 
         const fullText = list[currentIdx].text;
-        // 첫 번째 공백이나 탭을 기준으로 단어(영어)와 뜻(한국어) 분리
         let english = fullText.split(/[ \t]/)[0]; 
         let korean = fullText.replace(english, "").trim();
 
@@ -159,14 +196,12 @@
 
         const spd = parseFloat(document.getElementById('readSpeed').value);
 
-        // 1단계: 영어 단어 읽기
         const utterEng = new SpeechSynthesisUtterance(english);
         utterEng.lang = 'en-US';
         utterEng.rate = spd;
 
         utterEng.onend = () => {
             if (!isReading) return;
-            // 2단계: 한국어 뜻 읽기
             const utterKor = new SpeechSynthesisUtterance(korean);
             utterKor.lang = 'ko-KR';
             utterKor.rate = spd;
