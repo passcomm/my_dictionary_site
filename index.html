@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Perfect Voice Voca Player</title>
+    <title>Perfect Voice Voca Player PRO</title>
     <style>
-        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 100px 15px; } /* 하단 여백 추가 */
+        body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 120px 15px; } 
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
@@ -13,37 +13,40 @@
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
-        /* 상단 고정 상태 박스 */
-        .status-box { text-align: center; background: #eef6ff; padding: 15px; border-radius: 10px; margin: 15px 0; border: 1px solid #d0e3ff; }
-        #statusLabel { font-size: 20px; font-weight: bold; color: #0056b3; }
-        #progressDetail { font-size: 14px; color: #666; margin-top: 5px; }
+        /* [보완 1] 상태 박스 디자인 개선 (크고 선명하게) */
+        .status-box { text-align: center; background: #ffffff; padding: 20px; border-radius: 15px; margin: 15px 0; border: 2px solid #007bff; box-shadow: inset 0 0 10px rgba(0,123,255,0.05); }
+        #statusLabel { font-size: 16px; color: #007bff; margin-bottom: 10px; display: block; }
+        #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; word-break: keep-all; } /* 단어 크기 확대 */
 
-        /* [수정 1] 플로팅 컨트롤바 스타일 */
+        /* [보완 2] 진행 바(Progress Bar) */
+        .progress-container { width: 100%; background-color: #e4e6eb; border-radius: 10px; margin-top: 15px; height: 10px; overflow: hidden; }
+        #progressBar { width: 0%; height: 100%; background-color: #007bff; transition: width 0.3s; }
+
+        /* [보완 3] 플로팅 컨트롤바 (이동 버튼 추가) */
         .controls-wrapper {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(255, 255, 255, 0.95);
+            bottom: 0; left: 0; right: 0;
+            background: rgba(255, 255, 255, 0.98);
             padding: 15px;
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
             z-index: 1000;
             display: flex;
             justify-content: center;
         }
         .controls {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: 0.8fr 1fr 1fr 1fr 0.8fr; /* 5열 배치 */
+            gap: 8px;
             width: 100%;
             max-width: 570px;
         }
 
-        button { padding: 15px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; }
+        button { padding: 15px 5px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 15px; }
         .primary { background: #28a745; color: white; }
         .warning { background: #ffc107; color: black; }
         .danger { background: #dc3545; color: white; }
         .secondary { background: #6c757d; color: white; }
+        .move-btn { background: #f0f2f5; color: #333; font-size: 18px; } /* 이동 버튼 스타일 */
         
         textarea { width: 100%; height: 100px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 12px; font-size: 14px; resize: none; }
         .admin-controls { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 20px; }
@@ -51,8 +54,6 @@
         .word-text { flex: 1; margin-left: 10px; font-size: 16px; }
         .star { font-size: 28px; color: #ccc; cursor: pointer; }
         .star.selected { color: #ffc107; }
-        
-        /* 버튼 스타일 분리 */
         .del-btn { padding: 5px 10px; font-size: 12px; background: #ffeded; color: #d9534f; border: 1px solid #d9534f; border-radius: 5px; }
         .unselect-btn { padding: 5px 10px; font-size: 12px; background: #f0f0f0; color: #555; border: 1px solid #ccc; border-radius: 5px; }
     </style>
@@ -81,8 +82,11 @@
     </div>
 
     <div class="status-box">
-        <div id="statusLabel">준비되었습니다</div>
-        <div id="progressDetail">등록된 단어: 0개</div>
+        <span id="statusLabel">시스템 준비됨</span>
+        <div id="progressDetail">대기 중</div>
+        <div class="progress-container">
+            <div id="progressBar"></div>
+        </div>
     </div>
 
     <textarea id="bulkInput" placeholder="영어단어 뜻 (공백으로 구분, 한 줄에 하나씩)"></textarea>
@@ -97,9 +101,11 @@
 
 <div class="controls-wrapper">
     <div class="controls">
+        <button class="move-btn" onclick="moveWord(-1)">◀</button>
         <button class="primary" onclick="startReading()">시작</button>
         <button class="warning" onclick="pauseReading()">일시정지</button>
         <button class="danger" onclick="stopReading()">종료</button>
+        <button class="move-btn" onclick="moveWord(1)">▶</button>
     </div>
 </div>
 
@@ -118,8 +124,12 @@
     }
 
     function updateStatus() {
-        const total = (currentTab === 'all' ? words.length : words.filter(w=>w.selected).length);
-        document.getElementById('progressDetail').innerText = `목록 내 단어: ${total}개`;
+        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
+        const total = list.length;
+        if (!isReading) {
+            document.getElementById('progressDetail').innerText = `등록된 단어: ${total}개`;
+            document.getElementById('progressBar').style.width = '0%';
+        }
     }
 
     function switchTab(t) {
@@ -143,23 +153,17 @@
 
     function clearAllWords() { if(confirm("전체 삭제하시겠습니까?")) { stopReading(); words = []; save(); } }
     
-    // [수정 2] 렌더링 시 탭에 따라 버튼 분기 처리
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
         listDiv.innerHTML = '';
         const fragment = document.createDocumentFragment();
-        
         words.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
-            
             const item = document.createElement('div');
             item.className = 'word-item';
-            
-            // 전체 탭에서는 '삭제', 선별 탭에서는 '해제' 버튼 표시
             const actionBtn = currentTab === 'all' 
                 ? `<button class="del-btn" onclick="deleteWord(${index})">삭제</button>`
                 : `<button class="unselect-btn" onclick="toggleSelect(${index})">해제</button>`;
-
             item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
                 <span class="word-text">${word.text}</span>
                 ${actionBtn}`;
@@ -181,21 +185,51 @@
         readNextItem(list);
     }
 
+    // [보완 3] 앞/뒤 이동 함수
+    function moveWord(step) {
+        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
+        if (list.length === 0) return;
+        
+        synth.cancel(); // 현재 재생 중단
+        currentIdx += step;
+        currentRepeat = 0; // 반복 횟수 초기화
+
+        if (currentIdx < 0) currentIdx = list.length - 1; // 처음에서 뒤로가면 마지막으로
+        if (currentIdx >= list.length) currentIdx = 0; // 마지막에서 앞으로가면 처음으로
+
+        if (isReading) {
+            readNextItem(list);
+        } else {
+            // 정지 상태에서 이동 시 텍스트만 갱신
+            updateUI(list);
+        }
+    }
+
+    function updateUI(list) {
+        const fullText = list[currentIdx].text;
+        let english = fullText.split(/[ \t]/)[0]; 
+        let korean = fullText.replace(english, "").trim();
+        
+        document.getElementById('statusLabel').innerText = `단어 학습 중 (${currentIdx + 1} / ${list.length})`;
+        document.getElementById('progressDetail').innerText = `${english}\n${korean}`;
+        
+        // 진행 바 업데이트
+        const percent = ((currentIdx + 1) / list.length) * 100;
+        document.getElementById('progressBar').style.width = percent + '%';
+    }
+
     function readNextItem(list) {
         if (!isReading || currentIdx >= list.length) {
             if (currentIdx >= list.length) stopReading();
             return;
         }
 
+        updateUI(list);
         const fullText = list[currentIdx].text;
         let english = fullText.split(/[ \t]/)[0]; 
         let korean = fullText.replace(english, "").trim();
 
-        document.getElementById('statusLabel').innerText = `읽는 중: ${currentIdx + 1} / ${list.length}`;
-        document.getElementById('progressDetail').innerText = `${english} : ${korean} (${currentRepeat + 1}회)`;
-
         const spd = parseFloat(document.getElementById('readSpeed').value);
-
         const utterEng = new SpeechSynthesisUtterance(english);
         utterEng.lang = 'en-US';
         utterEng.rate = spd;
@@ -205,7 +239,6 @@
             const utterKor = new SpeechSynthesisUtterance(korean);
             utterKor.lang = 'ko-KR';
             utterKor.rate = spd;
-
             utterKor.onend = () => {
                 if (!isReading) return;
                 currentRepeat++;
@@ -223,7 +256,12 @@
     }
 
     function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = "일시 정지됨"; }
-    function stopReading() { isReading = false; currentIdx = 0; currentRepeat = 0; synth.cancel(); document.getElementById('statusLabel').innerText = "준비되었습니다"; updateStatus(); }
+    function stopReading() { 
+        isReading = false; currentIdx = 0; currentRepeat = 0; synth.cancel(); 
+        document.getElementById('statusLabel').innerText = "시스템 준비됨"; 
+        document.getElementById('progressBar').style.width = '0%';
+        updateStatus(); 
+    }
     window.onload = () => { render(); updateStatus(); };
 </script>
 </body>
