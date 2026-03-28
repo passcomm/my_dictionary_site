@@ -13,36 +13,25 @@
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
-        /* 상태 박스 개선: 별표 버튼 위치 확보 */
         .status-box { text-align: center; background: #ffffff; padding: 20px; border-radius: 15px; margin: 15px 0; border: 2px solid #007bff; box-shadow: inset 0 0 10px rgba(0,123,255,0.05); position: relative; }
         #statusLabel { font-size: 16px; color: #007bff; margin-bottom: 10px; display: block; }
-        #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; word-break: keep-all; min-height: 70px; display: flex; align-items: center; justify-content: center; }
+        #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; word-break: keep-all; min-height: 70px; display: flex; align-items: center; justify-content: center; white-space: pre-line; }
 
-        /* [추가] 상태창 내 대형 별표 스타일 */
-        .status-star { position: absolute; top: 10px; right: 15px; font-size: 40px; color: #ccc; cursor: pointer; user-select: none; transition: transform 0.2s; }
-        .status-star.selected { color: #ffc107; }
-        .status-star:active { transform: scale(1.2); }
+        /* 책갈피 및 별표 아이콘 */
+        .status-icons { position: absolute; top: 10px; right: 15px; display: flex; gap: 10px; }
+        .icon-btn { font-size: 30px; color: #ccc; cursor: pointer; user-select: none; }
+        .icon-btn.selected { color: #ffc107; }
+        .bookmark-btn.selected { color: #ff5722; }
 
-        .progress-container { width: 100%; background-color: #e4e6eb; border-radius: 10px; margin-top: 15px; height: 10px; overflow: hidden; }
-        #progressBar { width: 0%; height: 100%; background-color: #007bff; transition: width 0.3s; }
+        /* [기능 1] 슬라이더형 진행 바 */
+        .progress-container { width: 100%; margin-top: 15px; }
+        #progressBar { width: 100%; height: 12px; cursor: pointer; accent-color: #007bff; }
 
-        .controls-wrapper {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(255, 255, 255, 0.98);
-            padding: 15px;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
-            z-index: 1000;
-            display: flex; justify-content: center;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: 0.8fr 1fr 1fr 1fr 0.8fr;
-            gap: 8px;
-            width: 100%;
-            max-width: 570px;
-        }
+        /* [기능 3] 검색창 스타일 */
+        .search-box { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; box-sizing: border-box; font-size: 15px; }
 
+        .controls-wrapper { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); padding: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); z-index: 1000; display: flex; justify-content: center; }
+        .controls { display: grid; grid-template-columns: 0.8fr 1fr 1fr 1fr 0.8fr; gap: 8px; width: 100%; max-width: 570px; }
         button { padding: 15px 5px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 15px; }
         .primary { background: #28a745; color: white; }
         .warning { background: #ffc107; color: black; }
@@ -84,13 +73,18 @@
     </div>
 
     <div class="status-box">
-        <span class="status-star" id="statusStar" onclick="toggleStatusStar()">★</span>
+        <div class="status-icons">
+            <span class="icon-btn" id="statusStar" onclick="toggleStatusStar()">★</span>
+            <span class="icon-btn bookmark-btn" id="statusBookmark" onclick="toggleBookmark()">🔖</span>
+        </div>
         <span id="statusLabel">시스템 준비됨</span>
         <div id="progressDetail">대기 중</div>
         <div class="progress-container">
-            <div id="progressBar"></div>
+            <input type="range" id="progressBar" min="0" max="100" value="0" oninput="seekWord(this.value)">
         </div>
     </div>
+
+    <input type="text" id="searchInput" class="search-box" placeholder="찾고 싶은 단어나 뜻을 입력하세요..." oninput="render()">
 
     <textarea id="bulkInput" placeholder="영어단어 뜻 (공백으로 구분, 한 줄에 하나씩)"></textarea>
     
@@ -114,10 +108,11 @@
 
 <script>
     let words = JSON.parse(localStorage.getItem('myWords')) || [];
+    let bookmarkIdx = JSON.parse(localStorage.getItem('vocaBookmark')) || 0; // [기능 2] 책갈피 위치 로드
     let currentTab = 'all';
     let isReading = false;
     let synth = window.speechSynthesis;
-    let currentIdx = 0;
+    let currentIdx = bookmarkIdx; // 시작 위치를 책갈피로 설정
     let currentRepeat = 0;
 
     function save() {
@@ -127,31 +122,68 @@
     }
 
     function updateStatus() {
-        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
+        const list = getActiveList();
         const total = list.length;
-        if (!isReading) {
-            document.getElementById('progressDetail').innerText = `등록된 단어: ${total}개`;
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('statusStar').style.display = 'none'; // 정지 시 별표 숨김
+        const progressBar = document.getElementById('progressBar');
+        
+        progressBar.max = total > 0 ? total - 1 : 0;
+        
+        if (!isReading && currentIdx === 0 && words.length === 0) {
+            document.getElementById('progressDetail').innerText = `등록된 단어: 0개`;
+            progressBar.value = 0;
+            document.getElementById('statusStar').style.display = 'none';
+            document.getElementById('statusBookmark').style.display = 'none';
         } else {
-            document.getElementById('statusStar').style.display = 'block'; // 재생 시 별표 보임
+            document.getElementById('statusStar').style.display = 'inline-block';
+            document.getElementById('statusBookmark').style.display = 'inline-block';
+            updateUI(list);
         }
     }
 
-    // [추가] 상태창 별표 토글 함수
-    function toggleStatusStar() {
-        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
-        if (list.length === 0) return;
+    function getActiveList() {
+        return currentTab === 'all' ? words : words.filter(w=>w.selected);
+    }
 
+    // [기능 2] 책갈피 기능
+    function toggleBookmark() {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        
+        // 현재 인덱스를 책갈피로 저장 (전체 목록 기준 인덱스를 찾기 위해 가공)
         const currentWord = list[currentIdx];
-        // 원본 배열(words)에서 해당 단어의 인덱스를 찾아 업데이트
+        const originalIdx = words.indexOf(currentWord);
+        
+        bookmarkIdx = originalIdx;
+        localStorage.setItem('vocaBookmark', JSON.stringify(bookmarkIdx));
+        
+        render(); // UI 갱신 (책갈피 표시 여부 등)
+        alert((originalIdx + 1) + "번 단어에 책갈피를 꽂았습니다. 다음에 열 때 여기서 시작합니다.");
+    }
+
+    function toggleStatusStar() {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        const currentWord = list[currentIdx];
         const originalIdx = words.indexOf(currentWord);
         if (originalIdx !== -1) {
             words[originalIdx].selected = !words[originalIdx].selected;
             save();
-            // 별표 상태 즉시 업데이트
-            const star = document.getElementById('statusStar');
-            star.classList.toggle('selected', words[originalIdx].selected);
+        }
+    }
+
+    // [기능 1] 진행 바 슬라이더 이동 함수
+    function seekWord(val) {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        
+        synth.cancel();
+        currentIdx = parseInt(val);
+        currentRepeat = 0;
+        
+        if (isReading) {
+            readNextItem(list);
+        } else {
+            updateUI(list);
         }
     }
 
@@ -160,6 +192,7 @@
         document.getElementById('btnAll').classList.toggle('active', t === 'all');
         document.getElementById('btnSelected').classList.toggle('active', t === 'selected');
         stopReading();
+        currentIdx = 0; 
         render();
         updateStatus();
     }
@@ -174,21 +207,40 @@
         save();
     }
 
-    function clearAllWords() { if(confirm("전체 삭제하시겠습니까?")) { stopReading(); words = []; save(); } }
+    function clearAllWords() { 
+        if(confirm("전체 삭제하시겠습니까?")) { 
+            stopReading(); 
+            words = []; 
+            bookmarkIdx = 0;
+            localStorage.removeItem('vocaBookmark');
+            save(); 
+        } 
+    }
     
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         listDiv.innerHTML = '';
         const fragment = document.createDocumentFragment();
+        
         words.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
+            
+            // [기능 3] 검색어 필터링
+            if (searchTerm && !word.text.toLowerCase().includes(searchTerm)) return;
+            
             const item = document.createElement('div');
             item.className = 'word-item';
+            
+            // 책갈피 표시 (해당 단어가 책갈피된 위치면 표시)
+            const isBookmarked = (index === bookmarkIdx) ? " <span style='color:#ff5722; font-size:12px;'>[🔖책갈피]</span>" : "";
+            
             const actionBtn = currentTab === 'all' 
                 ? `<button class="del-btn" onclick="deleteWord(${index})">삭제</button>`
                 : `<button class="unselect-btn" onclick="toggleSelect(${index})">해제</button>`;
+            
             item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
-                <span class="word-text">${word.text}</span>
+                <span class="word-text">${word.text}${isBookmarked}</span>
                 ${actionBtn}`;
             fragment.appendChild(item);
         });
@@ -201,16 +253,15 @@
     function startReading() {
         if (isReading) return;
         synth.cancel();
-        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
+        const list = getActiveList();
         if (list.length === 0) return alert('단어가 없습니다.');
         isReading = true;
         if (currentIdx >= list.length) currentIdx = 0;
-        document.getElementById('statusStar').style.display = 'block';
         readNextItem(list);
     }
 
     function moveWord(step) {
-        const list = currentTab === 'all' ? words : words.filter(w=>w.selected);
+        const list = getActiveList();
         if (list.length === 0) return;
         synth.cancel();
         currentIdx += step;
@@ -222,6 +273,7 @@
     }
 
     function updateUI(list) {
+        if (!list[currentIdx]) { currentIdx = 0; return; }
         const currentWord = list[currentIdx];
         const fullText = currentWord.text;
         let english = fullText.split(/[ \t]/)[0]; 
@@ -230,12 +282,13 @@
         document.getElementById('statusLabel').innerText = `단어 학습 중 (${currentIdx + 1} / ${list.length})`;
         document.getElementById('progressDetail').innerText = `${english}\n${korean}`;
         
-        // 상단 별표 상태 업데이트
-        const star = document.getElementById('statusStar');
-        star.classList.toggle('selected', currentWord.selected);
+        // 아이콘 상태 업데이트
+        document.getElementById('statusStar').classList.toggle('selected', currentWord.selected);
+        const originalIdx = words.indexOf(currentWord);
+        document.getElementById('statusBookmark').classList.toggle('selected', originalIdx === bookmarkIdx);
 
-        const percent = ((currentIdx + 1) / list.length) * 100;
-        document.getElementById('progressBar').style.width = percent + '%';
+        // 슬라이더 바 업데이트
+        document.getElementById('progressBar').value = currentIdx;
     }
 
     function readNextItem(list) {
@@ -277,13 +330,19 @@
 
     function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = "일시 정지됨"; }
     function stopReading() { 
-        isReading = false; currentIdx = 0; currentRepeat = 0; synth.cancel(); 
+        isReading = false; currentRepeat = 0; synth.cancel(); 
         document.getElementById('statusLabel').innerText = "시스템 준비됨"; 
-        document.getElementById('progressBar').style.width = '0%';
-        document.getElementById('statusStar').style.display = 'none';
         updateStatus(); 
     }
-    window.onload = () => { render(); updateStatus(); };
+
+    window.onload = () => { 
+        // 앱을 열었을 때 전체 목록 기준 책갈피 위치로 currentIdx 설정
+        if (bookmarkIdx > 0 && bookmarkIdx < words.length) {
+            currentIdx = bookmarkIdx;
+        }
+        render(); 
+        updateStatus(); 
+    };
 </script>
 </body>
 </html>
