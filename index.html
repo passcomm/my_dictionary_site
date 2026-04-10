@@ -7,32 +7,24 @@
     <style>
         body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 120px 15px; } 
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        
         .category-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
         .cat-btn { flex: 1; padding: 12px; border: none; background: #cfd4da; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
         .cat-btn.active { background: #495057; color: white; }
-
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
-
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        
         .status-box { text-align: center; background: #ffffff; padding: 20px; border-radius: 15px; margin: 15px 0; border: 2px solid #007bff; box-shadow: inset 0 0 10px rgba(0,123,255,0.05); position: relative; }
         #statusLabel { font-size: 16px; color: #007bff; margin-bottom: 10px; display: block; }
         #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; min-height: 70px; display: flex; align-items: center; justify-content: center; white-space: pre-line; }
-
         .status-icons { position: absolute; top: 10px; right: 15px; display: flex; gap: 10px; }
         .icon-btn { font-size: 30px; color: #ccc; cursor: pointer; user-select: none; }
         .icon-btn.selected { color: #ffc107; }
         .bookmark-btn.selected { color: #ff5722; }
-
         .progress-container { width: 100%; margin-top: 15px; }
         #progressBar { width: 100%; height: 12px; cursor: pointer; accent-color: #007bff; }
-
         .search-box { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; box-sizing: border-box; font-size: 15px; }
-
         .controls-wrapper { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); padding: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); z-index: 1000; display: flex; justify-content: center; }
         .controls { display: grid; grid-template-columns: 0.8fr 1fr 1fr 1fr 0.8fr; gap: 8px; width: 100%; max-width: 570px; }
         button { padding: 15px 5px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; font-size: 15px; }
@@ -41,7 +33,6 @@
         .danger { background: #dc3545; color: white; }
         .secondary { background: #6c757d; color: white; }
         .move-btn { background: #f0f2f5; color: #333; font-size: 18px; }
-        
         textarea { width: 100%; height: 100px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; padding: 12px; font-size: 14px; resize: none; }
         .admin-controls { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 20px; }
         .word-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #eee; background: #fff; }
@@ -95,7 +86,7 @@
 
     <input type="text" id="searchInput" class="search-box" placeholder="현재 목록에서 검색..." oninput="render()">
 
-    <textarea id="bulkInput" placeholder="추가할 내용을 입력하세요 (자동 정렬됩니다)"></textarea>
+    <textarea id="bulkInput" placeholder="추가할 내용을 입력하세요"></textarea>
     
     <div class="admin-controls">
         <button class="secondary" id="bulkAddBtn" onclick="addBulkWords()">대량 등록</button>
@@ -116,7 +107,6 @@
 </div>
 
 <script>
-    // [보존] localStorage 키 이름을 유지하여 데이터 승계 보장
     let storage = JSON.parse(localStorage.getItem('vocaMasterData')) || {
         word: { list: [], lastIdx: 0, bookmark: 0 },
         coll: { list: [], lastIdx: 0, bookmark: 0 },
@@ -131,8 +121,10 @@
     let currentRepeat = 0;
 
     function saveStorage() {
-        // [수정 2] 저장 전 알파벳순 정렬 로직 추가
-        storage[currentCat].list.sort((a, b) => a.text.toLowerCase().localeCompare(b.text.toLowerCase()));
+        // [수정] 단어(word) 카테고리일 때만 알파벳 정렬 수행
+        if (currentCat === 'word') {
+            storage[currentCat].list.sort((a, b) => a.text.toLowerCase().localeCompare(b.text.toLowerCase()));
+        }
         
         localStorage.setItem('vocaMasterData', JSON.stringify(storage));
         render();
@@ -168,35 +160,30 @@
     function addBulkWords() {
         const input = document.getElementById('bulkInput').value;
         if(!input.trim()) return;
-    
-        // 1. 입력된 내용을 줄 단위로 나누고 정리
         const lines = input.split('\n').filter(line => line.trim() !== "");
-        
-        // 2. 현재 목록에 있는 텍스트들만 모은 집합(Set) 생성 (중복 체크용)
         const existingTexts = new Set(storage[currentCat].list.map(item => item.text));
         
         let addedCount = 0;
         const newWords = [];
-    
         lines.forEach(line => {
             const trimmedLine = line.trim();
-            // 3. 기존 목록에 없는 단어일 때만 추가 목록에 넣음
             if (!existingTexts.has(trimmedLine)) {
                 newWords.push({ text: trimmedLine, selected: false });
-                existingTexts.add(trimmedLine); // 방금 추가한 것도 중복 방지 목록에 포함
+                existingTexts.add(trimmedLine);
                 addedCount++;
             }
         });
-    
+
         if (addedCount > 0) {
             storage[currentCat].list = [...storage[currentCat].list, ...newWords];
             document.getElementById('bulkInput').value = '';
-            saveStorage(); // 자동 정렬 포함 저장
-            alert(`${addedCount}개의 새로운 단어가 추가되었습니다. (중복 제외)`);
+            saveStorage(); 
+            alert(`${addedCount}개가 추가되었습니다.`);
         } else {
-            alert("이미 모든 단어가 등록되어 있습니다.");
+            alert("이미 모든 내용이 등록되어 있습니다.");
         }
     }
+
     function clearAllWords() {
         if(confirm('이 카테고리를 비울까요?')) {
             stopReading();
