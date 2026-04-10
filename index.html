@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Multi-Category Voca Player PRO</title>
+    <title>Multi-Category Voca Player PRO v2</title>
     <style>
         body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 120px 15px; } 
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         
-        /* [기능 1] 카테고리 탭 (단어/연어/숙어) */
         .category-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
-        .cat-btn { flex: 1; padding: 10px; border: none; background: #cfd4da; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        .cat-btn { flex: 1; padding: 12px; border: none; background: #cfd4da; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
         .cat-btn.active { background: #495057; color: white; }
 
-        /* 선별 탭 */
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
@@ -58,9 +56,9 @@
 
 <div class="container">
     <div class="category-tabs">
-        <button class="cat-btn active" id="cat-word" onclick="switchCategory('word')">단어 학습</button>
-        <button class="cat-btn" id="cat-coll" onclick="switchCategory('coll')">연어 학습</button>
-        <button class="cat-btn" id="cat-idiom" onclick="switchCategory('idiom')">숙어 학습</button>
+        <button class="cat-btn active" id="cat-word" onclick="switchCategory('word')">단어</button>
+        <button class="cat-btn" id="cat-coll" onclick="switchCategory('coll')">연어</button>
+        <button class="cat-btn" id="cat-idiom" onclick="switchCategory('idiom')">숙어</button>
     </div>
 
     <div class="tabs">
@@ -72,7 +70,7 @@
         <div class="setting-item">
             <span>반복 횟수</span>
             <select id="repeatCount">
-                <option value="1">1회씩 읽기</option>
+                <option value="1">1회씩</option>
                 <option value="2">2회 반복</option>
                 <option value="3">3회 반복</option>
             </select>
@@ -97,12 +95,10 @@
 
     <input type="text" id="searchInput" class="search-box" placeholder="현재 목록에서 검색..." oninput="render()">
 
-    <textarea id="bulkInput" placeholder="입력 예시:
-apple 사과
-take action 조치를 취하다"></textarea>
+    <textarea id="bulkInput" placeholder="추가할 내용을 입력하세요 (자동 정렬됩니다)"></textarea>
     
     <div class="admin-controls">
-        <button class="secondary" id="bulkAddBtn" onclick="addBulkWords()">단어 대량 등록</button>
+        <button class="secondary" id="bulkAddBtn" onclick="addBulkWords()">대량 등록</button>
         <button class="danger" style="background:#ba2121" onclick="clearAllWords()">전체 삭제</button>
     </div>
 
@@ -120,73 +116,51 @@ take action 조치를 취하다"></textarea>
 </div>
 
 <script>
-    // 카테고리별 데이터 관리
+    // [보존] localStorage 키 이름을 유지하여 데이터 승계 보장
     let storage = JSON.parse(localStorage.getItem('vocaMasterData')) || {
         word: { list: [], lastIdx: 0, bookmark: 0 },
         coll: { list: [], lastIdx: 0, bookmark: 0 },
         idiom: { list: [], lastIdx: 0, bookmark: 0 }
     };
 
-    let currentCat = 'word'; // word, coll, idiom
-    let currentTab = 'all';  // all, selected
+    let currentCat = 'word';
+    let currentTab = 'all';
     let isReading = false;
     let synth = window.speechSynthesis;
     let currentIdx = 0;
     let currentRepeat = 0;
 
-    // 데이터 저장
     function saveStorage() {
+        // [수정 2] 저장 전 알파벳순 정렬 로직 추가
+        storage[currentCat].list.sort((a, b) => a.text.toLowerCase().localeCompare(b.text.toLowerCase()));
+        
         localStorage.setItem('vocaMasterData', JSON.stringify(storage));
         render();
         updateStatus();
     }
 
-    // 현재 선택된 리스트 가져오기
     function getActiveList() {
         const fullList = storage[currentCat].list;
         return currentTab === 'all' ? fullList : fullList.filter(w => w.selected);
     }
 
-    // [수정] 카테고리 전환
     function switchCategory(cat) {
         if(isReading) stopReading();
         currentCat = cat;
-        
-        // 버튼 UI 업데이트
         document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
         document.getElementById(`cat-${cat}`).classList.add('active');
-        document.getElementById('bulkAddBtn').innerText = 
-            cat === 'word' ? '단어 대량 등록' : cat === 'coll' ? '연어 대량 등록' : '숙어 대량 등록';
-
-        // 해당 카테고리의 마지막 학습 인덱스로 복구
         currentIdx = storage[currentCat].lastIdx || 0;
-        
         render();
         updateStatus();
     }
 
-    // [수정] 탭 전환 (전체 <-> 선별)
     function switchTab(t) {
-        const listBefore = getActiveList();
-        
-        // 만약 전체 목록에서 선별로 가기 전, 현재 인덱스를 lastIdx에 저장
-        if (currentTab === 'all' && t === 'selected') {
-            storage[currentCat].lastIdx = currentIdx;
-        }
-
+        if (currentTab === 'all' && t === 'selected') storage[currentCat].lastIdx = currentIdx;
         currentTab = t;
         document.getElementById('btnAll').classList.toggle('active', t === 'all');
         document.getElementById('btnSelected').classList.toggle('active', t === 'selected');
-        
         if(isReading) stopReading();
-
-        // 전체 목록으로 돌아올 때 이전 인덱스로 자동 복구
-        if (t === 'all') {
-            currentIdx = storage[currentCat].lastIdx || 0;
-        } else {
-            currentIdx = 0; // 선별 목록은 처음부터
-        }
-
+        currentIdx = (t === 'all') ? (storage[currentCat].lastIdx || 0) : 0;
         render();
         updateStatus();
     }
@@ -194,14 +168,37 @@ take action 조치를 취하다"></textarea>
     function addBulkWords() {
         const input = document.getElementById('bulkInput').value;
         if(!input.trim()) return;
-        const newWords = input.split('\n').filter(line => line.trim() !== "").map(line => ({ text: line.trim(), selected: false }));
-        storage[currentCat].list = [...storage[currentCat].list, ...newWords];
-        document.getElementById('bulkInput').value = '';
-        saveStorage();
+    
+        // 1. 입력된 내용을 줄 단위로 나누고 정리
+        const lines = input.split('\n').filter(line => line.trim() !== "");
+        
+        // 2. 현재 목록에 있는 텍스트들만 모은 집합(Set) 생성 (중복 체크용)
+        const existingTexts = new Set(storage[currentCat].list.map(item => item.text));
+        
+        let addedCount = 0;
+        const newWords = [];
+    
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            // 3. 기존 목록에 없는 단어일 때만 추가 목록에 넣음
+            if (!existingTexts.has(trimmedLine)) {
+                newWords.push({ text: trimmedLine, selected: false });
+                existingTexts.add(trimmedLine); // 방금 추가한 것도 중복 방지 목록에 포함
+                addedCount++;
+            }
+        });
+    
+        if (addedCount > 0) {
+            storage[currentCat].list = [...storage[currentCat].list, ...newWords];
+            document.getElementById('bulkInput').value = '';
+            saveStorage(); // 자동 정렬 포함 저장
+            alert(`${addedCount}개의 새로운 단어가 추가되었습니다. (중복 제외)`);
+        } else {
+            alert("이미 모든 단어가 등록되어 있습니다.");
+        }
     }
-
     function clearAllWords() {
-        if(confirm(`${currentCat === 'word' ? '단어' : currentCat === 'coll' ? '연어' : '숙어'} 목록을 모두 삭제하시겠습니까?`)) {
+        if(confirm('이 카테고리를 비울까요?')) {
             stopReading();
             storage[currentCat].list = [];
             storage[currentCat].lastIdx = 0;
@@ -215,7 +212,6 @@ take action 조치를 취하다"></textarea>
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         listDiv.innerHTML = '';
         const fragment = document.createDocumentFragment();
-        
         const fullList = storage[currentCat].list;
         const bookmarkIdx = storage[currentCat].bookmark;
 
@@ -225,9 +221,7 @@ take action 조치를 취하다"></textarea>
             
             const item = document.createElement('div');
             item.className = 'word-item';
-            const isBookmarked = (index === bookmarkIdx) ? " <span style='color:#ff5722; font-size:12px;'>[🔖책갈피]</span>" : "";
-            
-            // 삭제/해제 로직은 원본 리스트(storage[currentCat].list) 기준 인덱스 사용
+            const isBookmarked = (index === bookmarkIdx) ? " <span style='color:#ff5722; font-size:12px;'>[🔖]</span>" : "";
             const actionBtn = currentTab === 'all' 
                 ? `<button class="del-btn" onclick="deleteItem(${index})">삭제</button>`
                 : `<button class="unselect-btn" onclick="toggleSelect(${index})">해제</button>`;
@@ -241,7 +235,7 @@ take action 조치를 취하다"></textarea>
     }
 
     function toggleSelect(i) { storage[currentCat].list[i].selected = !storage[currentCat].list[i].selected; saveStorage(); }
-    function deleteItem(i) { if(confirm('완전히 삭제할까요?')) { storage[currentCat].list.splice(i, 1); saveStorage(); } }
+    function deleteItem(i) { if(confirm('삭제할까요?')) { storage[currentCat].list.splice(i, 1); saveStorage(); } }
 
     function updateStatus() {
         const list = getActiveList();
@@ -267,7 +261,7 @@ take action 조치를 취하다"></textarea>
         const english = parts[0];
         const korean = item.text.replace(english, "").trim();
         
-        document.getElementById('statusLabel').innerText = `${currentCat.toUpperCase()} 학습 (${currentIdx + 1} / ${list.length})`;
+        document.getElementById('statusLabel').innerText = `${currentCat.toUpperCase()} (${currentIdx + 1} / ${list.length})`;
         document.getElementById('progressDetail').innerText = `${english}\n${korean}`;
         
         document.getElementById('statusStar').classList.toggle('selected', item.selected);
@@ -275,25 +269,22 @@ take action 조치를 취하다"></textarea>
         document.getElementById('statusBookmark').classList.toggle('selected', originalIdx === storage[currentCat].bookmark);
         document.getElementById('progressBar').value = currentIdx;
 
-        // 전체 목록일 때만 현재 위치를 기억
         if (currentTab === 'all') storage[currentCat].lastIdx = currentIdx;
     }
 
-    // [기능] 책갈피
     function toggleBookmark() {
         const list = getActiveList();
         if (list.length === 0) return;
-        const originalIdx = storage[currentCat].list.indexOf(list[currentIdx]);
-        storage[currentCat].bookmark = originalIdx;
+        storage[currentCat].bookmark = storage[currentCat].list.indexOf(list[currentIdx]);
         saveStorage();
-        alert("책갈피를 설정했습니다.");
+        alert("책갈피를 꽂았습니다.");
     }
 
     function toggleStatusStar() {
         const list = getActiveList();
         if (list.length === 0) return;
-        const originalIdx = storage[currentCat].list.indexOf(list[currentIdx]);
-        storage[currentCat].list[originalIdx].selected = !storage[currentCat].list[originalIdx].selected;
+        const oIdx = storage[currentCat].list.indexOf(list[currentIdx]);
+        storage[currentCat].list[oIdx].selected = !storage[currentCat].list[oIdx].selected;
         saveStorage();
     }
 
@@ -331,18 +322,18 @@ take action 조치를 취하다"></textarea>
         updateUI(list);
         const item = list[currentIdx];
         const parts = item.text.split(/[ \t]/);
-        const english = parts[0];
-        const korean = item.text.replace(english, "").trim();
+        const eng = parts[0];
+        const kor = item.text.replace(eng, "").trim();
 
         const spd = parseFloat(document.getElementById('readSpeed').value);
-        const utterEng = new SpeechSynthesisUtterance(english);
-        utterEng.lang = 'en-US'; utterEng.rate = spd;
+        const uEng = new SpeechSynthesisUtterance(eng);
+        uEng.lang = 'en-US'; uEng.rate = spd;
 
-        utterEng.onend = () => {
+        uEng.onend = () => {
             if (!isReading) return;
-            const utterKor = new SpeechSynthesisUtterance(korean);
-            utterKor.lang = 'ko-KR'; utterKor.rate = spd;
-            utterKor.onend = () => {
+            const uKor = new SpeechSynthesisUtterance(kor);
+            uKor.lang = 'ko-KR'; uKor.rate = spd;
+            uKor.onend = () => {
                 if (!isReading) return;
                 currentRepeat++;
                 if (currentRepeat < parseInt(document.getElementById('repeatCount').value)) {
@@ -352,16 +343,15 @@ take action 조치를 취하다"></textarea>
                     setTimeout(() => readNextItem(list), 800);
                 }
             };
-            synth.speak(utterKor);
+            synth.speak(uKor);
         };
-        synth.speak(utterEng);
+        synth.speak(uEng);
     }
 
     function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = "일시 정지됨"; }
     function stopReading() { isReading = false; currentRepeat = 0; synth.cancel(); document.getElementById('statusLabel').innerText = "시스템 준비됨"; updateStatus(); }
 
     window.onload = () => {
-        // 첫 로드 시 단어 카테고리의 책갈피 위치로 세팅
         currentIdx = storage[currentCat].bookmark || 0;
         render();
         updateStatus();
