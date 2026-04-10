@@ -3,31 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Perfect Voice Voca Player PRO</title>
+    <title>Multi-Category Voca Player PRO</title>
     <style>
         body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f0f2f5; padding: 15px 15px 120px 15px; } 
         .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        /* [기능 1] 카테고리 탭 (단어/연어/숙어) */
+        .category-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
+        .cat-btn { flex: 1; padding: 10px; border: none; background: #cfd4da; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
+        .cat-btn.active { background: #495057; color: white; }
+
+        /* 선별 탭 */
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn { flex: 1; padding: 15px; border: none; background: #e4e6eb; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .tab-btn.active { background: #007bff; color: white; }
+
         .settings { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
         .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
         .status-box { text-align: center; background: #ffffff; padding: 20px; border-radius: 15px; margin: 15px 0; border: 2px solid #007bff; box-shadow: inset 0 0 10px rgba(0,123,255,0.05); position: relative; }
         #statusLabel { font-size: 16px; color: #007bff; margin-bottom: 10px; display: block; }
-        #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; word-break: keep-all; min-height: 70px; display: flex; align-items: center; justify-content: center; white-space: pre-line; }
+        #progressDetail { font-size: 26px; font-weight: 800; color: #1a1a1a; line-height: 1.4; min-height: 70px; display: flex; align-items: center; justify-content: center; white-space: pre-line; }
 
-        /* 책갈피 및 별표 아이콘 */
         .status-icons { position: absolute; top: 10px; right: 15px; display: flex; gap: 10px; }
         .icon-btn { font-size: 30px; color: #ccc; cursor: pointer; user-select: none; }
         .icon-btn.selected { color: #ffc107; }
         .bookmark-btn.selected { color: #ff5722; }
 
-        /* [기능 1] 슬라이더형 진행 바 */
         .progress-container { width: 100%; margin-top: 15px; }
         #progressBar { width: 100%; height: 12px; cursor: pointer; accent-color: #007bff; }
 
-        /* [기능 3] 검색창 스타일 */
         .search-box { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; box-sizing: border-box; font-size: 15px; }
 
         .controls-wrapper { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); padding: 15px; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); z-index: 1000; display: flex; justify-content: center; }
@@ -52,6 +57,12 @@
 <body>
 
 <div class="container">
+    <div class="category-tabs">
+        <button class="cat-btn active" id="cat-word" onclick="switchCategory('word')">단어 학습</button>
+        <button class="cat-btn" id="cat-coll" onclick="switchCategory('coll')">연어 학습</button>
+        <button class="cat-btn" id="cat-idiom" onclick="switchCategory('idiom')">숙어 학습</button>
+    </div>
+
     <div class="tabs">
         <button class="tab-btn active" id="btnAll" onclick="switchTab('all')">전체 목록</button>
         <button class="tab-btn" id="btnSelected" onclick="switchTab('selected')">선별(★)</button>
@@ -84,12 +95,14 @@
         </div>
     </div>
 
-    <input type="text" id="searchInput" class="search-box" placeholder="찾고 싶은 단어나 뜻을 입력하세요..." oninput="render()">
+    <input type="text" id="searchInput" class="search-box" placeholder="현재 목록에서 검색..." oninput="render()">
 
-    <textarea id="bulkInput" placeholder="영어단어 뜻 (공백으로 구분, 한 줄에 하나씩)"></textarea>
+    <textarea id="bulkInput" placeholder="입력 예시:
+apple 사과
+take action 조치를 취하다"></textarea>
     
     <div class="admin-controls">
-        <button class="secondary" onclick="addBulkWords()">단어 대량 등록</button>
+        <button class="secondary" id="bulkAddBtn" onclick="addBulkWords()">단어 대량 등록</button>
         <button class="danger" style="background:#ba2121" onclick="clearAllWords()">전체 삭제</button>
     </div>
 
@@ -107,92 +120,73 @@
 </div>
 
 <script>
-    let words = JSON.parse(localStorage.getItem('myWords')) || [];
-    let bookmarkIdx = JSON.parse(localStorage.getItem('vocaBookmark')) || 0; // [기능 2] 책갈피 위치 로드
-    let currentTab = 'all';
+    // 카테고리별 데이터 관리
+    let storage = JSON.parse(localStorage.getItem('vocaMasterData')) || {
+        word: { list: [], lastIdx: 0, bookmark: 0 },
+        coll: { list: [], lastIdx: 0, bookmark: 0 },
+        idiom: { list: [], lastIdx: 0, bookmark: 0 }
+    };
+
+    let currentCat = 'word'; // word, coll, idiom
+    let currentTab = 'all';  // all, selected
     let isReading = false;
     let synth = window.speechSynthesis;
-    let currentIdx = bookmarkIdx; // 시작 위치를 책갈피로 설정
+    let currentIdx = 0;
     let currentRepeat = 0;
 
-    function save() {
-        localStorage.setItem('myWords', JSON.stringify(words));
+    // 데이터 저장
+    function saveStorage() {
+        localStorage.setItem('vocaMasterData', JSON.stringify(storage));
         render();
         updateStatus();
     }
 
-    function updateStatus() {
-        const list = getActiveList();
-        const total = list.length;
-        const progressBar = document.getElementById('progressBar');
-        
-        progressBar.max = total > 0 ? total - 1 : 0;
-        
-        if (!isReading && currentIdx === 0 && words.length === 0) {
-            document.getElementById('progressDetail').innerText = `등록된 단어: 0개`;
-            progressBar.value = 0;
-            document.getElementById('statusStar').style.display = 'none';
-            document.getElementById('statusBookmark').style.display = 'none';
-        } else {
-            document.getElementById('statusStar').style.display = 'inline-block';
-            document.getElementById('statusBookmark').style.display = 'inline-block';
-            updateUI(list);
-        }
-    }
-
+    // 현재 선택된 리스트 가져오기
     function getActiveList() {
-        return currentTab === 'all' ? words : words.filter(w=>w.selected);
+        const fullList = storage[currentCat].list;
+        return currentTab === 'all' ? fullList : fullList.filter(w => w.selected);
     }
 
-    // [기능 2] 책갈피 기능
-    function toggleBookmark() {
-        const list = getActiveList();
-        if (list.length === 0) return;
+    // [수정] 카테고리 전환
+    function switchCategory(cat) {
+        if(isReading) stopReading();
+        currentCat = cat;
         
-        // 현재 인덱스를 책갈피로 저장 (전체 목록 기준 인덱스를 찾기 위해 가공)
-        const currentWord = list[currentIdx];
-        const originalIdx = words.indexOf(currentWord);
+        // 버튼 UI 업데이트
+        document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`cat-${cat}`).classList.add('active');
+        document.getElementById('bulkAddBtn').innerText = 
+            cat === 'word' ? '단어 대량 등록' : cat === 'coll' ? '연어 대량 등록' : '숙어 대량 등록';
+
+        // 해당 카테고리의 마지막 학습 인덱스로 복구
+        currentIdx = storage[currentCat].lastIdx || 0;
         
-        bookmarkIdx = originalIdx;
-        localStorage.setItem('vocaBookmark', JSON.stringify(bookmarkIdx));
-        
-        render(); // UI 갱신 (책갈피 표시 여부 등)
-        alert((originalIdx + 1) + "번 단어에 책갈피를 꽂았습니다. 다음에 열 때 여기서 시작합니다.");
+        render();
+        updateStatus();
     }
 
-    function toggleStatusStar() {
-        const list = getActiveList();
-        if (list.length === 0) return;
-        const currentWord = list[currentIdx];
-        const originalIdx = words.indexOf(currentWord);
-        if (originalIdx !== -1) {
-            words[originalIdx].selected = !words[originalIdx].selected;
-            save();
-        }
-    }
-
-    // [기능 1] 진행 바 슬라이더 이동 함수
-    function seekWord(val) {
-        const list = getActiveList();
-        if (list.length === 0) return;
-        
-        synth.cancel();
-        currentIdx = parseInt(val);
-        currentRepeat = 0;
-        
-        if (isReading) {
-            readNextItem(list);
-        } else {
-            updateUI(list);
-        }
-    }
-
+    // [수정] 탭 전환 (전체 <-> 선별)
     function switchTab(t) {
+        const listBefore = getActiveList();
+        
+        // 만약 전체 목록에서 선별로 가기 전, 현재 인덱스를 lastIdx에 저장
+        if (currentTab === 'all' && t === 'selected') {
+            storage[currentCat].lastIdx = currentIdx;
+        }
+
         currentTab = t;
         document.getElementById('btnAll').classList.toggle('active', t === 'all');
         document.getElementById('btnSelected').classList.toggle('active', t === 'selected');
-        stopReading();
-        currentIdx = 0; 
+        
+        if(isReading) stopReading();
+
+        // 전체 목록으로 돌아올 때 이전 인덱스로 자동 복구
+        if (t === 'all') {
+            currentIdx = storage[currentCat].lastIdx || 0;
+        } else {
+            currentIdx = 0; // 선별 목록은 처음부터
+        }
+
         render();
         updateStatus();
     }
@@ -200,43 +194,42 @@
     function addBulkWords() {
         const input = document.getElementById('bulkInput').value;
         if(!input.trim()) return;
-        const newLines = input.split('\n').filter(line => line.trim() !== "");
-        const newWords = newLines.map(line => ({ text: line.trim(), selected: false }));
-        words = [...words, ...newWords];
+        const newWords = input.split('\n').filter(line => line.trim() !== "").map(line => ({ text: line.trim(), selected: false }));
+        storage[currentCat].list = [...storage[currentCat].list, ...newWords];
         document.getElementById('bulkInput').value = '';
-        save();
+        saveStorage();
     }
 
-    function clearAllWords() { 
-        if(confirm("전체 삭제하시겠습니까?")) { 
-            stopReading(); 
-            words = []; 
-            bookmarkIdx = 0;
-            localStorage.removeItem('vocaBookmark');
-            save(); 
-        } 
+    function clearAllWords() {
+        if(confirm(`${currentCat === 'word' ? '단어' : currentCat === 'coll' ? '연어' : '숙어'} 목록을 모두 삭제하시겠습니까?`)) {
+            stopReading();
+            storage[currentCat].list = [];
+            storage[currentCat].lastIdx = 0;
+            storage[currentCat].bookmark = 0;
+            saveStorage();
+        }
     }
-    
+
     function render() {
         const listDiv = document.getElementById('wordListDisplay');
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         listDiv.innerHTML = '';
         const fragment = document.createDocumentFragment();
         
-        words.forEach((word, index) => {
+        const fullList = storage[currentCat].list;
+        const bookmarkIdx = storage[currentCat].bookmark;
+
+        fullList.forEach((word, index) => {
             if (currentTab === 'selected' && !word.selected) return;
-            
-            // [기능 3] 검색어 필터링
             if (searchTerm && !word.text.toLowerCase().includes(searchTerm)) return;
             
             const item = document.createElement('div');
             item.className = 'word-item';
-            
-            // 책갈피 표시 (해당 단어가 책갈피된 위치면 표시)
             const isBookmarked = (index === bookmarkIdx) ? " <span style='color:#ff5722; font-size:12px;'>[🔖책갈피]</span>" : "";
             
+            // 삭제/해제 로직은 원본 리스트(storage[currentCat].list) 기준 인덱스 사용
             const actionBtn = currentTab === 'all' 
-                ? `<button class="del-btn" onclick="deleteWord(${index})">삭제</button>`
+                ? `<button class="del-btn" onclick="deleteItem(${index})">삭제</button>`
                 : `<button class="unselect-btn" onclick="toggleSelect(${index})">해제</button>`;
             
             item.innerHTML = `<span class="star ${word.selected ? 'selected' : ''}" onclick="toggleSelect(${index})">★</span>
@@ -247,79 +240,115 @@
         listDiv.appendChild(fragment);
     }
 
-    function toggleSelect(i) { words[i].selected = !words[i].selected; save(); }
-    function deleteWord(i) { if(confirm('단어장에서 완전히 삭제할까요?')) { words.splice(i, 1); save(); } }
+    function toggleSelect(i) { storage[currentCat].list[i].selected = !storage[currentCat].list[i].selected; saveStorage(); }
+    function deleteItem(i) { if(confirm('완전히 삭제할까요?')) { storage[currentCat].list.splice(i, 1); saveStorage(); } }
 
-    function startReading() {
-        if (isReading) return;
-        synth.cancel();
+    function updateStatus() {
         const list = getActiveList();
-        if (list.length === 0) return alert('단어가 없습니다.');
-        isReading = true;
-        if (currentIdx >= list.length) currentIdx = 0;
-        readNextItem(list);
+        const progressBar = document.getElementById('progressBar');
+        progressBar.max = list.length > 0 ? list.length - 1 : 0;
+        
+        if (list.length === 0) {
+            document.getElementById('progressDetail').innerText = "목록이 비어 있습니다.";
+            progressBar.value = 0;
+            document.getElementById('statusStar').style.display = 'none';
+            document.getElementById('statusBookmark').style.display = 'none';
+        } else {
+            document.getElementById('statusStar').style.display = 'inline-block';
+            document.getElementById('statusBookmark').style.display = 'inline-block';
+            updateUI(list);
+        }
+    }
+
+    function updateUI(list) {
+        if (!list[currentIdx]) currentIdx = 0;
+        const item = list[currentIdx];
+        const parts = item.text.split(/[ \t]/);
+        const english = parts[0];
+        const korean = item.text.replace(english, "").trim();
+        
+        document.getElementById('statusLabel').innerText = `${currentCat.toUpperCase()} 학습 (${currentIdx + 1} / ${list.length})`;
+        document.getElementById('progressDetail').innerText = `${english}\n${korean}`;
+        
+        document.getElementById('statusStar').classList.toggle('selected', item.selected);
+        const originalIdx = storage[currentCat].list.indexOf(item);
+        document.getElementById('statusBookmark').classList.toggle('selected', originalIdx === storage[currentCat].bookmark);
+        document.getElementById('progressBar').value = currentIdx;
+
+        // 전체 목록일 때만 현재 위치를 기억
+        if (currentTab === 'all') storage[currentCat].lastIdx = currentIdx;
+    }
+
+    // [기능] 책갈피
+    function toggleBookmark() {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        const originalIdx = storage[currentCat].list.indexOf(list[currentIdx]);
+        storage[currentCat].bookmark = originalIdx;
+        saveStorage();
+        alert("책갈피를 설정했습니다.");
+    }
+
+    function toggleStatusStar() {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        const originalIdx = storage[currentCat].list.indexOf(list[currentIdx]);
+        storage[currentCat].list[originalIdx].selected = !storage[currentCat].list[originalIdx].selected;
+        saveStorage();
+    }
+
+    function seekWord(val) {
+        const list = getActiveList();
+        if (list.length === 0) return;
+        synth.cancel();
+        currentIdx = parseInt(val);
+        currentRepeat = 0;
+        if (isReading) readNextItem(list);
+        else updateUI(list);
     }
 
     function moveWord(step) {
         const list = getActiveList();
         if (list.length === 0) return;
         synth.cancel();
-        currentIdx += step;
+        currentIdx = (currentIdx + step + list.length) % list.length;
         currentRepeat = 0;
-        if (currentIdx < 0) currentIdx = list.length - 1;
-        if (currentIdx >= list.length) currentIdx = 0;
         if (isReading) readNextItem(list);
         else updateUI(list);
     }
 
-    function updateUI(list) {
-        if (!list[currentIdx]) { currentIdx = 0; return; }
-        const currentWord = list[currentIdx];
-        const fullText = currentWord.text;
-        let english = fullText.split(/[ \t]/)[0]; 
-        let korean = fullText.replace(english, "").trim();
-        
-        document.getElementById('statusLabel').innerText = `단어 학습 중 (${currentIdx + 1} / ${list.length})`;
-        document.getElementById('progressDetail').innerText = `${english}\n${korean}`;
-        
-        // 아이콘 상태 업데이트
-        document.getElementById('statusStar').classList.toggle('selected', currentWord.selected);
-        const originalIdx = words.indexOf(currentWord);
-        document.getElementById('statusBookmark').classList.toggle('selected', originalIdx === bookmarkIdx);
-
-        // 슬라이더 바 업데이트
-        document.getElementById('progressBar').value = currentIdx;
+    function startReading() {
+        if (isReading) return;
+        synth.cancel();
+        const list = getActiveList();
+        if (list.length === 0) return;
+        isReading = true;
+        readNextItem(list);
     }
 
     function readNextItem(list) {
-        if (!isReading || currentIdx >= list.length) {
-            if (currentIdx >= list.length) stopReading();
-            return;
-        }
-
+        if (!isReading || currentIdx >= list.length) { stopReading(); return; }
         updateUI(list);
-        const fullText = list[currentIdx].text;
-        let english = fullText.split(/[ \t]/)[0]; 
-        let korean = fullText.replace(english, "").trim();
+        const item = list[currentIdx];
+        const parts = item.text.split(/[ \t]/);
+        const english = parts[0];
+        const korean = item.text.replace(english, "").trim();
 
         const spd = parseFloat(document.getElementById('readSpeed').value);
         const utterEng = new SpeechSynthesisUtterance(english);
-        utterEng.lang = 'en-US';
-        utterEng.rate = spd;
+        utterEng.lang = 'en-US'; utterEng.rate = spd;
 
         utterEng.onend = () => {
             if (!isReading) return;
             const utterKor = new SpeechSynthesisUtterance(korean);
-            utterKor.lang = 'ko-KR';
-            utterKor.rate = spd;
+            utterKor.lang = 'ko-KR'; utterKor.rate = spd;
             utterKor.onend = () => {
                 if (!isReading) return;
                 currentRepeat++;
                 if (currentRepeat < parseInt(document.getElementById('repeatCount').value)) {
                     setTimeout(() => readNextItem(list), 400);
                 } else {
-                    currentRepeat = 0;
-                    currentIdx++;
+                    currentRepeat = 0; currentIdx++;
                     setTimeout(() => readNextItem(list), 800);
                 }
             };
@@ -329,19 +358,13 @@
     }
 
     function pauseReading() { isReading = false; synth.cancel(); document.getElementById('statusLabel').innerText = "일시 정지됨"; }
-    function stopReading() { 
-        isReading = false; currentRepeat = 0; synth.cancel(); 
-        document.getElementById('statusLabel').innerText = "시스템 준비됨"; 
-        updateStatus(); 
-    }
+    function stopReading() { isReading = false; currentRepeat = 0; synth.cancel(); document.getElementById('statusLabel').innerText = "시스템 준비됨"; updateStatus(); }
 
-    window.onload = () => { 
-        // 앱을 열었을 때 전체 목록 기준 책갈피 위치로 currentIdx 설정
-        if (bookmarkIdx > 0 && bookmarkIdx < words.length) {
-            currentIdx = bookmarkIdx;
-        }
-        render(); 
-        updateStatus(); 
+    window.onload = () => {
+        // 첫 로드 시 단어 카테고리의 책갈피 위치로 세팅
+        currentIdx = storage[currentCat].bookmark || 0;
+        render();
+        updateStatus();
     };
 </script>
 </body>
